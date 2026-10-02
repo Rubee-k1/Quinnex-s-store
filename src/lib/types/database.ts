@@ -115,6 +115,14 @@ export type Database = {
         Args: { p_token: string | null; p_order_id: string };
         Returns: Json;
       };
+      claim_order_confirmation_email: {
+        Args: { p_token: string; p_order_id: string };
+        Returns: Json;
+      };
+      record_order_confirmation_email: {
+        Args: { p_token: string; p_order_id: string; p_sent: boolean; p_message_id: string | null; p_error: string | null };
+        Returns: boolean;
+      };
     };
     Enums: {
       order_status: OrderStatus;
@@ -157,5 +165,9 @@ export type Order = {
   shipping_postal_code: string;
   shipping_country: string;
   created_at: string;
+  confirmation_email_status: "pending" | "sending" | "sent" | "failed";
+  confirmation_email_attempts: number;
+  confirmation_email_sent_at: string | null;
+  confirmation_email_can_retry: boolean;
   items: OrderItem[];
 };

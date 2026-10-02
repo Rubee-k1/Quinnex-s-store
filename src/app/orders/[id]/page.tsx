@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { OrderSummary } from "@/components/order-summary";
+import { ResendConfirmationForm } from "@/components/resend-confirmation-form";
 import { getOrderForVisitor } from "@/lib/data/orders";
 
 export const metadata: Metadata = { title: "Order confirmation", robots: { index: false } };
@@ -21,6 +22,30 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
         <Alert tone="success">
           <p className="text-base font-semibold">Thank you, your order has been placed!</p>
           <p>We&apos;ve saved your order. Keep your order number for reference.</p>
+        </Alert>
+      )}
+
+      {order.confirmation_email_status === "sent" && (
+        <p className="text-sm text-neutral-700" data-testid="email-status">
+          A confirmation email was sent to <span className="font-medium">{order.email}</span>.
+        </p>
+      )}
+      {(order.confirmation_email_status === "pending" || order.confirmation_email_status === "sending") && (
+        <p className="text-sm text-neutral-700" data-testid="email-status">
+          We&apos;re sending a confirmation email to <span className="font-medium">{order.email}</span>.
+        </p>
+      )}
+      {order.confirmation_email_status === "failed" && (
+        <Alert tone="warning">
+          <p data-testid="email-status">
+            We couldn&apos;t send your confirmation email to <span className="font-medium">{order.email}</span>. Your order
+            is still confirmed — please keep your order number.
+          </p>
+          {order.confirmation_email_can_retry ? (
+            <ResendConfirmationForm orderId={order.id} />
+          ) : (
+            <p className="mt-1">Please contact us and quote order #{order.order_number}.</p>
+          )}
         </Alert>
       )}
 

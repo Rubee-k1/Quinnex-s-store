@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   refresh: vi.fn(),
   revalidatePath: vi.fn(),
+  sendOrderConfirmation: vi.fn(),
   redirect: vi.fn((url: string) => {
     throw Object.assign(new Error("NEXT_REDIRECT"), { url });
   }),
@@ -20,6 +21,7 @@ vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("next/cache", () => ({ refresh: mocks.refresh, revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/cart-token", () => ({ getCartToken: async () => mocks.token }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
+vi.mock("@/lib/email/send-order-confirmation", () => ({ sendOrderConfirmation: mocks.sendOrderConfirmation }));
 
 const { placeOrder } = await import("./checkout");
 
@@ -60,6 +62,7 @@ beforeEach(() => {
   mocks.rpc.mockReset();
   mocks.refresh.mockReset();
   mocks.revalidatePath.mockReset();
+  mocks.sendOrderConfirmation.mockReset().mockResolvedValue({ status: "sent", messageId: "<m>" });
 });
 
 describe("placeOrder", () => {
@@ -84,6 +87,29 @@ describe("placeOrder", () => {
     });
     expect(redirectedTo).toBe(`/orders/${ORDER_ID}?placed=1`);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");
+    // The confirmation email is sent for the persisted order before responding.
+    expect(mocks.sendOrderConfirmation).toHaveBeenCalledWith(TOKEN, ORDER_ID);
+  });
+
+  it("still shows the successful confirmation when the email fails", async () => {
+    mocks.rpc.mockResolvedValue({ data: ORDER_ID, error: null });
+    mocks.sendOrderConfirmation.mockResolvedValue({ status: "failed", error: "Mailgun responded 502" });
+    expect((await run(form())).redirectedTo).toBe(`/orders/${ORDER_ID}?placed=1`);
+  });
+
+  it("still shows the successful confirmation even if the email code throws unexpectedly", async () => {
+    mocks.rpc.mockResolvedValue({ data: ORDER_ID, error: null });
+    mocks.sendOrderConfirmation.mockRejectedValue(new Error("boom"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await run(form())).redirectedTo).toBe(`/orders/${ORDER_ID}?placed=1`);
+  });
+
+  it("duplicate submission: the same order id is returned and the sender is asked again (it skips)", async () => {
+    mocks.rpc.mockResolvedValue({ data: ORDER_ID, error: null });
+    mocks.sendOrderConfirmation.mockResolvedValue({ status: "skipped" });
+    expect((await run(form())).redirectedTo).toBe(`/orders/${ORDER_ID}?placed=1`);
+    expect((await run(form())).redirectedTo).toBe(`/orders/${ORDER_ID}?placed=1`);
+    expect(mocks.sendOrderConfirmation).toHaveBeenCalledTimes(2);
   });
 
   it("never sends prices, totals or quantities from the browser", async () => {
@@ -125,6 +151,7 @@ describe("placeOrder", () => {
     expect(redirectedTo).toBeNull();
     expect(state).toMatchObject({ status: "error", message: userMessage });
     expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(mocks.sendOrderConfirmation).not.toHaveBeenCalled(); // no order, no email
   });
 
   it("refreshes the order summary when the cart changed after checkout was opened", async () => {

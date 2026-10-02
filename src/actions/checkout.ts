@@ -4,6 +4,7 @@ import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCartToken } from "@/lib/cart-token";
 import { describeDbError } from "@/lib/db-errors";
+import { sendOrderConfirmation } from "@/lib/email/send-order-confirmation";
 import { createClient } from "@/lib/supabase/server";
 import { CHECKOUT_FIELDS, checkoutSchema, fieldErrors, formValues } from "@/lib/validation";
 import type { FormState } from "./state";
@@ -55,6 +56,27 @@ export async function placeOrder(_prev: FormState, formData: FormData): Promise<
     return { status: "error", message: describeDbError(error), values };
   }
 
+  // The order is committed. Send the confirmation email; failures are recorded
+  // on the order for retry and never undo or block the successful checkout.
+  try {
+    await sendOrderConfirmation(token, orderId);
+  } catch (err) {
+    console.error("[checkout] confirmation email error (order kept):", (err as Error).message);
+  }
+
   revalidatePath("/", "layout"); // header cart count is now 0
   redirect(`/orders/${orderId}?placed=1`);
+}
+
+/** Customer-initiated retry of a failed confirmation email (limited attempts). */
+export async function resendOrderConfirmation(_prev: FormState, formData: FormData): Promise<FormState> {
+  const orderId = String(formData.get("orderId") ?? "");
+  const token = await getCartToken();
+  if (!token || !/^[0-9a-f-]{36}$/i.test(orderId)) return { status: "error", message: "Order not found." };
+
+  const result = await sendOrderConfirmation(token, orderId);
+  refresh();
+  if (result.status === "sent") return { status: "success", message: "Confirmation email sent." };
+  if (result.status === "skipped") return { status: "error", message: "This email can't be resent right now." };
+  return { status: "error", message: "We still couldn't send the email. Please try again later or contact us." };
 }

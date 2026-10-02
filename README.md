@@ -2,10 +2,10 @@
 
 A Next.js (App Router) online shop backed by Supabase. Built to deploy on Vercel.
 
-**Current scope: Phases 1–2.** The app has a catalogue, product pages, search,
+**Current scope: Phases 1–3.** The app has a catalogue, product pages, search,
 category filtering, a persistent guest cart (Phase 1), and checkout with orders
-saved in Supabase (Phase 2). Accounts and sign-in, payments and order emails are
-later phases. Orders are saved with status `pending` and no payment is taken.
+saved in Supabase (Phase 2), and order confirmation emails via Mailgun (Phase 3).
+Accounts and sign-in, and payments, are later phases. Orders are saved with status `pending` and no payment is taken.
 
 ## Features
 
@@ -76,6 +76,31 @@ Orders are created only by `place_order()`, in one transaction:
 Visitors cannot read or write `orders` or `order_items` directly. `get_order()` returns
 an order only to the browser (cart cookie) that placed it, so other visitors get a 404.
 
+### Order confirmation emails (Phase 3)
+
+After `place_order()` commits, the checkout action calls `sendOrderConfirmation()`
+(`src/lib/email/`, server-only):
+
+1. `claim_order_confirmation_email()` atomically marks the order's email
+   as `sending` and returns the order with its items. It returns nothing if the email was already
+   sent or is in flight, so duplicate checkout submissions never send twice.
+2. The email is built: shop name, customer name, order number and date, each item's
+   quantity, unit price and line total, subtotal, total, shipping address and
+   support contact. Customer text is HTML-escaped.
+3. It is sent through the Mailgun HTTP API, with a 10-second timeout.
+4. `record_order_confirmation_email()` stores the outcome on the order
+   (`confirmation_email_status`, attempts, `last_error`, Mailgun message ID) and adds
+   a row to `order_email_attempts`.
+
+**An email failure never affects the order.** The order is already committed, the
+customer still sees the success page, and the failure is recorded. If the email
+failed, the confirmation page offers **Resend confirmation email** (up to 5 attempts per
+order). To find failed emails, check the `orders` table for
+`confirmation_email_status = 'failed'`, or read `order_email_attempts`.
+
+`MAILGUN_API_KEY`, `MAILGUN_DOMAIN` and `MAILGUN_FROM_EMAIL` are read only in
+`server-only` modules. They are validated before use, and the key is never logged.
+
 ### Guest cart security
 
 - The browser gets a random 256-bit token in an `httpOnly`, `SameSite=Lax` cookie
@@ -100,11 +125,12 @@ cp .env.example .env.local   # fill in your Supabase URL and anon key
 1. Create a Supabase project.
 2. Apply the schema: either `supabase link --project-ref <ref> && supabase db push`, or run
    each file in `supabase/migrations/` **in order**, once each, in the SQL Editor:
-   `20261002000000_shop_catalog_and_cart.sql`, then `20261003000000_orders_checkout.sql`.
+   `20261002000000_shop_catalog_and_cart.sql`, then `20261003000000_orders_checkout.sql`,
+   then `20261004000000_order_confirmation_emails.sql`.
 3. Load sample data by running `supabase/seed.sql`. Manage products and categories
    afterwards in the Table Editor.
 4. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from
-   Project Settings → API. Phase 1 needs no server-only secrets.
+   Project Settings → API, and the Mailgun variables listed in `.env.example`.
 5. `npm run dev`
 
 Product images are loaded from whatever `image_url` holds. If an image fails to load,

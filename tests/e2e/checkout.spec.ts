@@ -92,7 +92,7 @@ test.describe("checkout", () => {
     await expect(items.getByText("Classic White Tee")).toBeVisible();
     await expect(items.getByText("2 × $28.00")).toBeVisible();
     await expect(items.getByTestId("order-total")).toHaveText("$125.00");
-    await expect(page.getByText(email)).toBeVisible();
+    await expect(page.getByText(email).first()).toBeVisible(); // shown in the email status and contact sections
     await expect(page.getByTestId("cart-count")).toHaveText("0");
     const orderUrl = page.url().replace("?placed=1", "");
 
