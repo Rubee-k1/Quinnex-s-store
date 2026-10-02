@@ -13,3 +13,15 @@ describe("describeDbError", () => {
     expect(describeDbError(null)).toBe("Something went wrong. Please try again.");
   });
 });
+
+describe("describeDbError (checkout)", () => {
+  it("explains checkout failures", () => {
+    expect(describeDbError({ message: "CART_EMPTY" })).toBe("Your cart is empty.");
+    expect(describeDbError({ message: "CART_CHANGED" })).toMatch(/cart changed/);
+    expect(describeDbError({ message: "INSUFFICIENT_STOCK: Lamp (2 available)" })).toBe(
+      "Not enough stock for Lamp (2 available). Please update the quantity in your cart.",
+    );
+    expect(describeDbError({ message: "PRODUCT_UNAVAILABLE: Beanie" })).toMatch(/^Beanie is no longer available/);
+    expect(describeDbError({ message: "IDEMPOTENCY_CONFLICT" })).toMatch(/expired/);
+  });
+});

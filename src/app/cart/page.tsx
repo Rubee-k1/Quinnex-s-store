@@ -44,8 +44,25 @@ export default async function CartPage() {
               <dd data-testid="summary-subtotal">{cart.currency ? formatMoney(cart.subtotalCents, cart.currency) : "—"}</dd>
             </div>
           </dl>
-          {cart.hasIssues && <Alert tone="warning">Some items in your cart need attention.</Alert>}
-          <p className="text-xs text-neutral-500">Checkout is coming soon. Your cart is saved on this device.</p>
+          {cart.hasIssues ? (
+            <>
+              <Alert tone="warning">Some items in your cart need attention before you can check out.</Alert>
+              <span
+                aria-disabled="true"
+                className="block w-full cursor-not-allowed rounded-lg bg-neutral-300 px-4 py-3 text-center text-sm font-medium text-white"
+              >
+                Checkout
+              </span>
+            </>
+          ) : (
+            <Link
+              href="/checkout"
+              className="block w-full rounded-lg bg-neutral-900 px-4 py-3 text-center text-sm font-medium text-white hover:bg-neutral-700"
+            >
+              Checkout
+            </Link>
+          )}
+          <p className="text-xs text-neutral-500">Your cart is saved on this device.</p>
           <Link
             href="/products"
             className="block w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-center text-sm font-medium text-neutral-900 hover:bg-neutral-50"

@@ -2,9 +2,10 @@
 
 A Next.js (App Router) online shop backed by Supabase. Built to deploy on Vercel.
 
-**Current scope: Phase 1, the shop experience.** The app has a catalogue, product
-pages, search, category filtering and a persistent guest cart. Checkout, accounts
-and sign-in, and order emails are later phases.
+**Current scope: Phases 1–2.** The app has a catalogue, product pages, search,
+category filtering, a persistent guest cart (Phase 1), and checkout with orders
+saved in Supabase (Phase 2). Accounts and sign-in, payments and order emails are
+later phases. Orders are saved with status `pending` and no payment is taken.
 
 ## Features
 
@@ -48,6 +49,33 @@ tests/
   minor units), currency, image URL, stock, `is_active`
 - `carts` and `cart_items`: guest carts
 
+### Checkout and orders (Phase 2)
+
+- `orders`: order number, `user_id` (only when signed in, a later phase), customer
+  email, name and phone, shipping address, `subtotal_cents`, `shipping_cents`,
+  `total_cents`, `status` (`pending` / `paid` / `fulfilled` / `cancelled`), `created_at`
+- `order_items`: product ID, product name and slug snapshot, unit price snapshot,
+  quantity, line total
+
+Orders are created only by `place_order()`, in one transaction:
+
+1. **Duplicate protection.** Each checkout page carries a fresh `idempotency_key`. A repeated
+   submission of the same checkout (double click, retry, replay) returns the
+   existing order instead of creating another. Submissions for one cart are
+   serialised with an advisory lock, and the key is unique in the database.
+2. **Cart-change check.** The checkout page also sends a digest of the cart it showed (items,
+   quantities, prices and availability). If the cart changed in the meantime, the order is
+   refused (`CART_CHANGED`) and the page re-renders the current summary.
+3. **Locking and validation.** The function locks the product rows, then checks that every product is still active
+   and has enough stock.
+4. **Server-side prices.** Every price and total is recalculated from `products`. Nothing price-related is
+   accepted from the browser, and the form has no price fields.
+5. **Writes.** It writes the order and its items, decrements stock and empties the cart.
+   Any failure rolls the whole transaction back, so no partial orders are possible.
+
+Visitors cannot read or write `orders` or `order_items` directly. `get_order()` returns
+an order only to the browser (cart cookie) that placed it, so other visitors get a 404.
+
 ### Guest cart security
 
 - The browser gets a random 256-bit token in an `httpOnly`, `SameSite=Lax` cookie
@@ -71,7 +99,8 @@ cp .env.example .env.local   # fill in your Supabase URL and anon key
 
 1. Create a Supabase project.
 2. Apply the schema: either `supabase link --project-ref <ref> && supabase db push`, or run
-   `supabase/migrations/20261002000000_shop_catalog_and_cart.sql` in the SQL Editor.
+   each file in `supabase/migrations/` **in order**, once each, in the SQL Editor:
+   `20261002000000_shop_catalog_and_cart.sql`, then `20261003000000_orders_checkout.sql`.
 3. Load sample data by running `supabase/seed.sql`. Manage products and categories
    afterwards in the Table Editor.
 4. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from
@@ -109,7 +138,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm run t
 
 ### End-to-end tests
 
-These need a running app connected to a Supabase project with the migration and the seed
+These need a running app connected to a Supabase project with the migrations and the seed
 applied:
 
 ```bash
@@ -117,9 +146,16 @@ npm run build && npm start &
 E2E_BASE_URL=http://localhost:3000 npx playwright test
 ```
 
+Set `E2E_DATABASE_URL` (a direct Postgres connection string) to also run the checkout tests
+that verify saved rows and change stock or availability mid-checkout. Without it, those tests
+are skipped. Only point it at a test database, because those tests modify product stock.
+
 ## Known follow-ups
 
 - Abandoned guest carts are never deleted. Add a scheduled cleanup, for example with
   `pg_cron`: delete carts whose `updated_at` is older than 30 days.
 - When accounts arrive (a later phase), merge the guest cart into the user's cart on
-  sign-in.
+  sign-in, and list a signed-in user's orders by `user_id`.
+- Payment is not collected; orders stay `pending`. Integrate a payment provider
+  before taking real orders.
+- Shipping is free (`shipping_cents = 0`) and there is no tax calculation.
