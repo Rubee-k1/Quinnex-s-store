@@ -5,6 +5,7 @@ import { Alert } from "@/components/alert";
 import { CheckoutForm } from "@/components/checkout-form";
 import { EmptyState } from "@/components/empty-state";
 import { OrderSummary } from "@/components/order-summary";
+import { getUser } from "@/lib/auth";
 import { getCartToken } from "@/lib/cart-token";
 import { countryOptions } from "@/lib/countries";
 import { getCart } from "@/lib/data/cart";
@@ -13,7 +14,7 @@ import { getCartFingerprint } from "@/lib/data/orders";
 export const metadata: Metadata = { title: "Checkout" };
 
 export default async function CheckoutPage() {
-  const [cart, token] = await Promise.all([getCart(), getCartToken()]);
+  const [cart, token, user] = await Promise.all([getCart(), getCartToken(), getUser()]);
 
   if (!token || cart.lines.length === 0) {
     return (
@@ -67,7 +68,7 @@ export default async function CheckoutPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start">
         <section className="rounded-xl border border-neutral-200 bg-white p-5 sm:p-6">
           {/* A fresh key per page render: resubmitting this form returns the same order. */}
-          <CheckoutForm idempotencyKey={randomUUID()} cartFingerprint={fingerprint} countries={countryOptions()} />
+          <CheckoutForm idempotencyKey={randomUUID()} cartFingerprint={fingerprint} countries={countryOptions()} defaultEmail={user?.email} />
         </section>
         <div className="lg:sticky lg:top-24">
           <OrderSummary

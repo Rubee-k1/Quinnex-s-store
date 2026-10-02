@@ -18,7 +18,7 @@ alter default privileges in schema public grant all on sequences to anon, authen
 -- Supabase Auth's schema: only the pieces the migrations reference.
 create schema if not exists auth;
 grant usage on schema auth to anon, authenticated, service_role;
-create table if not exists auth.users (id uuid primary key, email text);
+create table if not exists auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}'::jsonb);
 
 -- Same implementation Supabase uses: reads the "sub" claim of the request JWT.
 create or replace function auth.uid() returns uuid

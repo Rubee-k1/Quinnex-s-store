@@ -12,9 +12,11 @@ type Props = {
   idempotencyKey: string;
   cartFingerprint: string;
   countries: { code: string; name: string }[];
+  /** Pre-fills the email for signed-in customers. */
+  defaultEmail?: string;
 };
 
-export function CheckoutForm({ idempotencyKey, cartFingerprint, countries }: Props) {
+export function CheckoutForm({ idempotencyKey, cartFingerprint, countries, defaultEmail }: Props) {
   const [state, formAction] = useActionState(placeOrder, initialFormState);
   const v = state.values ?? {};
   const e = state.fieldErrors ?? {};
@@ -43,7 +45,7 @@ export function CheckoutForm({ idempotencyKey, cartFingerprint, countries }: Pro
 
       <fieldset className="space-y-4">
         <legend className="text-base font-semibold text-neutral-900">Contact</legend>
-        <Field label="Email" name="email" type="email" autoComplete="email" required defaultValue={v.email} error={e.email} hint="We'll use this to contact you about your order." />
+        <Field label="Email" name="email" type="email" autoComplete="email" required defaultValue={v.email ?? defaultEmail} error={e.email} hint="We'll use this to contact you about your order." />
         <Field label="Phone" name="phone" type="tel" autoComplete="tel" defaultValue={v.phone} error={e.phone} />
       </fieldset>
 

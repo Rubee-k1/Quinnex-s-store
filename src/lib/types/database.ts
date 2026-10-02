@@ -73,6 +73,71 @@ export type Database = {
           },
         ];
       };
+      profiles: {
+        Row: {
+          id: string;
+          email: string | null;
+          full_name: string | null;
+          avatar_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: { id: string; email?: string | null; full_name?: string | null; avatar_url?: string | null };
+        Update: { full_name?: string | null };
+        Relationships: [];
+      };
+      /** Only the columns granted to `authenticated` are listed (RLS: own rows only). */
+      orders: {
+        Row: {
+          id: string;
+          order_number: number;
+          user_id: string | null;
+          status: OrderStatus;
+          currency: string;
+          subtotal_cents: number;
+          shipping_cents: number;
+          total_cents: number;
+          email: string;
+          customer_name: string;
+          phone: string | null;
+          shipping_line1: string;
+          shipping_line2: string | null;
+          shipping_city: string;
+          shipping_state: string | null;
+          shipping_postal_code: string;
+          shipping_country: string;
+          confirmation_email_status: string;
+          confirmation_email_sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      order_items: {
+        Row: {
+          id: string;
+          order_id: string;
+          product_id: string | null;
+          product_name: string;
+          product_slug: string;
+          unit_price_cents: number;
+          quantity: number;
+          line_total_cents: number;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -118,6 +183,10 @@ export type Database = {
       claim_order_confirmation_email: {
         Args: { p_token: string; p_order_id: string };
         Returns: Json;
+      };
+      link_guest_orders_to_user: {
+        Args: { p_token: string };
+        Returns: number;
       };
       record_order_confirmation_email: {
         Args: { p_token: string; p_order_id: string; p_sent: boolean; p_message_id: string | null; p_error: string | null };

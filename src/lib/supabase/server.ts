@@ -1,21 +1,38 @@
 import "server-only";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { getPublicSupabaseConfig } from "@/lib/env";
 import type { Database } from "@/lib/types/database";
 
 /**
- * Server-side Supabase client using the public anon key. All access is
- * governed by RLS and the cart functions' token checks. Phase 1 has no user
- * sessions, so no auth cookies are read or written.
+ * Server-side Supabase client bound to the current request.
+ *
+ * Uses the public anon key plus the visitor's Supabase Auth session (stored in
+ * cookies by @supabase/ssr). Queries run as the signed-in user — or anonymously
+ * — with Row Level Security enforced. No service-role key is used anywhere.
+ * Create one per request; never share across requests.
  */
-// Awaiting connection() makes every page that reads from Supabase render per
-// request (stock and prices must be live) instead of at build time.
 export async function createClient() {
+  // Stock, prices and the session must be read per request, never prerendered.
   await connection();
   const { url, anonKey } = getPublicSupabaseConfig();
-  return createSupabaseClient<Database>(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  const cookieStore = await cookies();
+
+  return createServerClient<Database>(url, anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        } catch {
+          // Called from a Server Component, where cookies are read-only. The
+          // proxy refreshes the session on every request, so this is safe.
+        }
+      },
+    },
     global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
   });
 }

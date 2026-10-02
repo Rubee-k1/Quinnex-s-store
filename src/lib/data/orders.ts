@@ -5,12 +5,13 @@ import type { Order } from "@/lib/types/database";
 
 /**
  * Loads an order for the current visitor. The database only returns it to the
- * browser (cart cookie) that placed it; anything else yields null.
+ * browser (cart cookie) that placed it or to its signed-in owner; else null.
  */
 export async function getOrderForVisitor(orderId: string): Promise<Order | null> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId)) return null;
+  // Either the cart cookie of the browser that placed it, or the signed-in
+  // owner's session (any device). get_order() enforces both in the database.
   const token = await getCartToken();
-  if (!token) return null;
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("get_order", { p_token: token, p_order_id: orderId });
   if (error) throw new Error(`Failed to load order: ${error.message}`);

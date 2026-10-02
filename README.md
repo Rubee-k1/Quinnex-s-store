@@ -2,10 +2,10 @@
 
 A Next.js (App Router) online shop backed by Supabase. Built to deploy on Vercel.
 
-**Current scope: Phases 1–3.** The app has a catalogue, product pages, search,
+**Current scope: Phases 1–4.** The app has a catalogue, product pages, search,
 category filtering, a persistent guest cart (Phase 1), and checkout with orders
-saved in Supabase (Phase 2), and order confirmation emails via Mailgun (Phase 3).
-Accounts and sign-in, and payments, are later phases. Orders are saved with status `pending` and no payment is taken.
+saved in Supabase (Phase 2), order confirmation emails via Mailgun (Phase 3), and
+Google sign-in with "My orders" (Phase 4). Payments are a later phase. Orders are saved with status `pending` and no payment is taken.
 
 ## Features
 
@@ -101,6 +101,27 @@ order). To find failed emails, check the `orders` table for
 `MAILGUN_API_KEY`, `MAILGUN_DOMAIN` and `MAILGUN_FROM_EMAIL` are read only in
 `server-only` modules. They are validated before use, and the key is never logged.
 
+### Google sign-in (Phase 4)
+
+This uses Supabase Auth's built-in **Google provider**, with no custom OAuth code:
+
+`Continue with Google` → `signInWithOAuth({ provider: "google" })` (PKCE) → Google
+consent → Supabase Auth → `/auth/callback` (`exchangeCodeForSession`) → session cookie →
+back to the page the user came from.
+
+- **Sessions:** `@supabase/ssr` keeps the session in cookies. `src/proxy.ts` refreshes it
+  on every request and redirects signed-out visitors away from `/account`.
+- **Identity:** `profiles.id` and `orders.user_id` reference `auth.users(id)`. A profile
+  is created automatically from Google's name and picture.
+- **Row Level Security:** a signed-in user can `select` only their own `orders` and
+  `order_items`. Internal order columns (cart hash, idempotency key, email internals)
+  are not readable by clients at all, and users cannot modify orders.
+- **Linking guest orders:** at sign-in, orders placed earlier *in the same browser* *and*
+  with the same email address are linked to the account.
+- Orders remain viewable by the browser that placed them, or by their signed-in owner
+  on any device. Everyone else gets a 404.
+- No service-role key is used anywhere in the app.
+
 ### Guest cart security
 
 - The browser gets a random 256-bit token in an `httpOnly`, `SameSite=Lax` cookie
@@ -126,7 +147,7 @@ cp .env.example .env.local   # fill in your Supabase URL and anon key
 2. Apply the schema: either `supabase link --project-ref <ref> && supabase db push`, or run
    each file in `supabase/migrations/` **in order**, once each, in the SQL Editor:
    `20261002000000_shop_catalog_and_cart.sql`, then `20261003000000_orders_checkout.sql`,
-   then `20261004000000_order_confirmation_emails.sql`.
+   then `20261004000000_order_confirmation_emails.sql`, then `20261005000000_auth_profiles.sql`.
 3. Load sample data by running `supabase/seed.sql`. Manage products and categories
    afterwards in the Table Editor.
 4. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from
@@ -135,6 +156,17 @@ cp .env.example .env.local   # fill in your Supabase URL and anon key
 
 Product images are loaded from whatever `image_url` holds. If an image fails to load,
 a placeholder is shown.
+
+### Google sign-in setup
+
+1. In the Google Cloud Console, open APIs & Services, then:
+   - **OAuth consent screen:** set the app name and support email.
+   - **Credentials → Create OAuth client ID:** choose type **Web application**, and set the
+     Authorized redirect URI to `https://<project-ref>.supabase.co/auth/v1/callback`.
+2. In Supabase:
+   - **Authentication → Providers → Google:** enable it, and paste the client ID and secret.
+   - **Authentication → URL Configuration:** set **Site URL** to your shop URL, and add
+     **Redirect URLs** `https://<your-domain>/**` and `http://localhost:3000/**`.
 
 ### Deploying to Vercel
 
@@ -171,6 +203,12 @@ applied:
 npm run build && npm start &
 E2E_BASE_URL=http://localhost:3000 npx playwright test
 ```
+
+The Google sign-in tests (`tests/e2e/auth.spec.ts`, enabled with `E2E_GOOGLE_STANDIN=1`) run
+against Supabase Auth (GoTrue) with its real Google provider. Google is replaced by
+`tests/e2e/support/fake-google.mjs`. GoTrue's calls to Google's hostnames are routed to it
+with `HTTPS_PROXY=http://127.0.0.1:54340` and `SSL_CERT_FILE` (a test CA), while the test
+simulates the consent screen. Never use the stand-in outside tests.
 
 Set `E2E_DATABASE_URL` (a direct Postgres connection string) to also run the checkout tests
 that verify saved rows and change stock or availability mid-checkout. Without it, those tests
