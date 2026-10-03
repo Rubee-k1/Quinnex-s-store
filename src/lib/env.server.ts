@@ -78,3 +78,14 @@ export function getSiteUrl(env: NodeJS.ProcessEnv = process.env) {
   if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
   return "http://localhost:3000";
 }
+
+/**
+ * Public support contact shown on the privacy and terms pages: STORE_SUPPORT_EMAIL,
+ * otherwise the address in MAILGUN_FROM_EMAIL, otherwise null.
+ */
+export function getSupportEmail(env: NodeJS.ProcessEnv = process.env): string | null {
+  const support = env.STORE_SUPPORT_EMAIL?.trim();
+  if (support && emailAddress.safeParse(support).success) return support;
+  const from = env.MAILGUN_FROM_EMAIL?.trim();
+  return (from && parseFrom(from)?.address) || null;
+}

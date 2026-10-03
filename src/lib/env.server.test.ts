@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getMailgunConfig } from "./env.server";
+import { getMailgunConfig, getSupportEmail } from "./env.server";
 
 const KEY = "test-mailgun-key-not-real-0001";
 const base = { MAILGUN_API_KEY: KEY, MAILGUN_DOMAIN: "mg.quinnex.com", MAILGUN_FROM_EMAIL: "orders@mg.quinnex.com" };
@@ -51,5 +51,16 @@ describe("getMailgunConfig", () => {
   it("strips header-injection characters from the display name", () => {
     const r = cfg({ ...base, MAILGUN_FROM_EMAIL: '"Evil\r\nBcc: x@y.z" <orders@mg.quinnex.com>' });
     expect(r.ok && r.config.from).not.toMatch(/[\r\n]/);
+  });
+});
+
+describe("getSupportEmail", () => {
+  const support = (env: Record<string, string | undefined>) => getSupportEmail(env as NodeJS.ProcessEnv);
+
+  it("prefers STORE_SUPPORT_EMAIL, then the From address, otherwise null", () => {
+    expect(support({ STORE_SUPPORT_EMAIL: "help@quinnex.com", MAILGUN_FROM_EMAIL: "orders@mg.quinnex.com" })).toBe("help@quinnex.com");
+    expect(support({ MAILGUN_FROM_EMAIL: "Quinnex <orders@mg.quinnex.com>" })).toBe("orders@mg.quinnex.com");
+    expect(support({ STORE_SUPPORT_EMAIL: "not-an-email", MAILGUN_FROM_EMAIL: "orders@mg.quinnex.com" })).toBe("orders@mg.quinnex.com");
+    expect(support({})).toBeNull();
   });
 });

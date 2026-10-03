@@ -73,7 +73,7 @@ const app = (req, res) => {
     json(res, 404, { error: "not_found", path: url.pathname });
   });
 };
-const tls = https.createServer({ key: readFileSync(dir + "leaf.key"), cert: readFileSync(dir + "leaf.pem") }, app).listen(54341, "127.0.0.1");
+https.createServer({ key: readFileSync(dir + "leaf.key"), cert: readFileSync(dir + "leaf.pem") }, app).listen(54341, "127.0.0.1");
 const ALLOWED = /(^|\.)(google\.com|googleapis\.com)$/;
 const proxy = http.createServer((req, res) => { res.writeHead(405).end("CONNECT only"); });
 proxy.on("connect", (req, client, head) => {

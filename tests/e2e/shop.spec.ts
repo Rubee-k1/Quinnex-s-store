@@ -194,3 +194,22 @@ test("@mobile layout fits a phone screen and keeps key actions reachable", async
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+test.describe("legal pages", () => {
+  test("privacy policy and terms are linked from the footer and the sign-in page", async ({ page }) => {
+    await page.goto("/");
+    const legal = page.getByRole("navigation", { name: "Legal" });
+    await legal.getByRole("link", { name: "Privacy Policy" }).click();
+    await expect(page).toHaveURL(/\/privacy$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeVisible();
+    await expect(page.getByText(/do not access your Gmail/)).toBeVisible();
+
+    await legal.getByRole("link", { name: "Terms of Service" }).click();
+    await expect(page).toHaveURL(/\/terms$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Terms of Service" })).toBeVisible();
+
+    await page.goto("/login");
+    await expect(page.getByRole("main").getByRole("link", { name: "Privacy Policy" })).toHaveAttribute("href", "/privacy");
+    await expect(page.getByRole("main").getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
+  });
+});

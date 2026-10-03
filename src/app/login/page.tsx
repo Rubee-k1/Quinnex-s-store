@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
@@ -25,6 +26,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <GoogleSignInButton next={next} />
         <p className="text-center text-xs text-neutral-500">
           You can still shop and check out without an account.
+        </p>
+        <p className="text-center text-xs text-neutral-500">
+          By continuing you agree to our{" "}
+          <Link href="/terms" className="underline hover:text-neutral-900">Terms</Link> and{" "}
+          <Link href="/privacy" className="underline hover:text-neutral-900">Privacy Policy</Link>.
         </p>
       </div>
     </div>
